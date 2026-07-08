@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diff Views for Human Edits vs AI Edits — Competitive Research</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 32px 96px;
+  color: #1f2328;
+  line-height: 1.65;
+  font-size: 16px;
+  background: #fff;
+}
+h1, h2, h3, h4 {
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 2em;
+  margin-bottom: 0.6em;
+}
+h1 { font-size: 2em; border-bottom: 1px solid #d1d9e0; padding-bottom: 0.3em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid #d1d9e0; padding-bottom: 0.3em; }
+h3 { font-size: 1.2em; }
+h4 { font-size: 1.05em; color: #424a53; }
+p { margin: 0.6em 0; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: #f6f8fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "SF Mono", Monaco, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+pre {
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.9em;
+}
+pre code { background: transparent; padding: 0; }
+blockquote {
+  border-left: 4px solid #d1d9e0;
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: #424a53;
+  background: #f8fafc;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid #d1d9e0;
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+th { background: #f6f8fa; font-weight: 600; }
+hr {
+  border: none;
+  border-top: 1px solid #d1d9e0;
+  margin: 2em 0;
+}
+ul, ol { padding-left: 1.6em; }
+li { margin: 0.25em 0; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+</style>
+</head>
+<body>
+<h1 id="diff-views-for-human-edits-vs-ai-edits-competitive-research">Diff Views for Human Edits vs AI Edits — Competitive Research</h1>
+<p><strong>Context.</strong> For the AIRO SDK connector editor flow (PMO-2980). Follow-up to the highlight-definition note (airo-ai-vs-human-edit-highlighting) which flagged authorship attribution as unresearched. The question: when human edits and AI edits mix in the same file, does any product distinguish them in the diff view, and should AIRO? This doc covers both layers: the pending review diff (before accept) and persistent attribution (after accept/commit).</p>
+<p><strong>Products covered.</strong> Cursor, GitHub Copilot (VS Code), Zed, aider, Claude Code, Git AI.</p>
+<p><strong>Scope.</strong> How each product's diff surface treats mixed human + AI edits, whether authorship (who wrote this line) is recorded and shown, at what granularity (line, commit, round), and what users say about it.</p>
+<p><strong>Product selection.</strong> Same finding as the undo/redo research: there is no meaningful Tier 1, because workflow automation products (Zapier, n8n, Make) have no in-editor AI diff surface at all. The mixed-authorship problem only exists once a product embeds an AI-editing code surface, which is what AIRO is adding.</p>
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Tier</th>
+<th>Why it's relevant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub Copilot (VS Code)</td>
+<td>2</td>
+<td>The incumbent review flow; its pending-diff overlay is the best-documented mixed-edits failure</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td>3</td>
+<td>The only product that shipped line-level AI-vs-human attribution as a product feature (Cursor Blame) plus an open spec (Agent Trace)</td>
+</tr>
+<tr>
+<td>Zed</td>
+<td>3</td>
+<td>Cleanest hunk-level pending review; a control case with no authorship layer</td>
+</tr>
+<tr>
+<td>aider</td>
+<td>3</td>
+<td>The commit-level attribution pioneer: "(aider)" author suffix on by default since early on</td>
+</tr>
+<tr>
+<td>Claude Code</td>
+<td>3</td>
+<td>The Co-Authored-By trailer that made AI attribution a mainstream (and contested) practice</td>
+</tr>
+<tr>
+<td>Git AI</td>
+<td>3</td>
+<td>Open-source line-level attribution infrastructure (git notes), shows what write-time recording looks like</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="part-1-behavior-per-product">Part 1 — Behavior per product</h2>
+<p>Two distinct layers keep coming up, so each product is described on both:
+<strong>(a) pending diff</strong> — the review surface before accept. <strong>(b) persistent attribution</strong> — any record of authorship after accept/commit.</p>
+<h3 id="cursor">Cursor</h3>
+<p>(a) Pending diffs make no authorship distinction, and the review pane actively mishandles the mix: "Review: All Changes shows the original changes that were made by the agent, disregarding the manual changes that the user did" (<a href="https://forum.cursor.com/t/all-changes-show-stale-agent-changes-and-disregard-user-changes/144331" target="_blank" rel="noopener noreferrer">Cursor forum</a>, November 2025). (b) <a href="https://cursor.com/docs/integrations/cursor-blame" target="_blank" rel="noopener noreferrer">Cursor Blame</a> (shipped in 2.4, Enterprise plan only, admin-enabled) extends git blame with three authorship classes per line (Tab, Agent with model name, Human), hover shows the conversation that produced the line, and the commit view shows percentage attribution per source. Cursor also published <a href="https://www.infoq.com/news/2026/02/agent-trace-cursor/" target="_blank" rel="noopener noreferrer">Agent Trace</a>, a draft RFC for a vendor-neutral JSON trace format classifying code ranges as human, AI, mixed, or unknown, with content hashes to survive refactoring; it deliberately leaves merges, rebases, and large agent changes unresolved.</p>
+<h3 id="github-copilot-vs-code">GitHub Copilot (VS Code)</h3>
+<p>(a) The pending-edits overlay is computed from the chat session's last checkpoint, so a manual edit made outside the session is claimed as an AI edit and can't be cleared: "Even if I manually edited those files outside the chat session... I cannot clear the diff overlay" (<a href="https://github.com/microsoft/vscode/issues/307439" target="_blank" rel="noopener noreferrer">vscode #307439</a>, April 2026). The requested fix in that thread is a "accept the current workspace state as the new baseline" command. <a href="https://code.visualstudio.com/docs/copilot/chat/copilot-edits" target="_blank" rel="noopener noreferrer">Staging auto-accepts</a> all pending AI edits, mixing them permanently. (b) No authorship layer; once kept, AI edits are indistinguishable from typed ones.</p>
+<h3 id="zed">Zed</h3>
+<p>(a) The <a href="https://zed.dev/docs/ai/agent-panel" target="_blank" rel="noopener noreferrer">Agent Panel</a> offers the cleanest hunk-level accept/reject in the set, but hunks carry no authorship metadata; a user edit inside a pending hunk simply becomes part of the hunk. (b) None. Zed is the control case: good review mechanics, zero attribution.</p>
+<h3 id="aider">aider</h3>
+<p>(b, its whole model) aider <a href="https://aider.chat/docs/git.html" target="_blank" rel="noopener noreferrer">marks authorship at commit time</a>: by default it appends "(aider)" to the git author name when it wrote the changes, and to the committer name when it merely committed the user's dirty files, a two-way distinction (wrote it vs touched it) no other product makes. <code>--attribute-co-authored-by</code> switches to a Co-authored-by trailer, and <code>--no-attribute-author</code> turns it all off. There is no pending diff layer; git is the review surface.</p>
+<h3 id="claude-code">Claude Code</h3>
+<p>(b) Adds a Co-Authored-By trailer to commits and a footer to PR descriptions by default. The practitioner critique is that the trailer is the wrong tool: "The Co-Authored-By trailer in git was meant for people who exchanged drafts, and that's not what's happening here" (<a href="https://fabiorehm.com/blog/2026/03/02/our-coding-agent-commits-deserve-better-than-co-authored-by/" target="_blank" rel="noopener noreferrer">Fabio Rehm</a>, March 2026), proposing dedicated <code>Coding-Agent</code> and <code>Model</code> trailers instead because the same model runs behind many tools. (a) In the VS Code extension, proposed diffs are gated per edit, but accepted edits carry no mark.</p>
+<h3 id="git-ai">Git AI</h3>
+<p>(b) <a href="https://usegitai.com/agent-blame" target="_blank" rel="noopener noreferrer">Agent Blame</a> is open-source infrastructure for exactly this: agents call <code>git ai checkpoint</code> while coding, checkpoints become an Authorship Log attached to the commit as a git note, recording which model, agent, and prompt generated each line, and attributions are rewritten through rebases, squashes, and merges so they survive history editing. It works because attribution is recorded at write time by the tool that made the edit, not inferred afterward.</p>
+<hr />
+<h2 id="part-2-themed-insights">Part 2 — Themed insights</h2>
+<h3 id="theme-1-in-the-pending-diff-nobody-separates-your-edits-from-the-ais-and-interleaving-breaks-the-review">Theme 1: In the pending diff, nobody separates your edits from the AI's, and interleaving breaks the review</h3>
+<p>Every product with a pending-review surface treats the diff as one undifferentiated set of changes. When the user edits during review, the products fail in two directions: Copilot claims the user's edits as AI edits (<a href="https://github.com/microsoft/vscode/issues/307439" target="_blank" rel="noopener noreferrer">vscode #307439</a>), and Cursor shows the AI's original changes while "disregarding the manual changes that the user did" (<a href="https://forum.cursor.com/t/all-changes-show-stale-agent-changes-and-disregard-user-changes/144331" target="_blank" rel="noopener noreferrer">Cursor forum</a>). Zed avoids the bugs but only by making no claim at all.</p>
+<p>For AIRO: this confirms the highlight-note recommendation. A pending highlight that claims to mean "AIRO wrote this" will be wrong in exactly the interleaved case the connector workflow guarantees (prompt, review, refine by hand, test). Defining the highlight as "changed since checkpoint" is the only definition the diff can actually keep.</p>
+<h3 id="theme-2-persistent-attribution-exists-but-it-lives-at-the-commit-boundary-not-in-the-diff">Theme 2: Persistent attribution exists, but it lives at the commit boundary, not in the diff</h3>
+<p>The products that do record authorship all record it when code crosses a durable boundary: aider stamps the git author field, Claude Code stamps the commit message, Git AI attaches a git note at commit, and Cursor Blame reads committed code. Nobody attributes authorship inside the live buffer or the pending diff. The one thing users ask Cursor for is pushing attribution further downstream (into the PR view), not upstream into the editor.</p>
+<p>For AIRO: the analogous durable boundary is the checkpoint/version, not the line. A version history entry that says "this round was AIRO, from this prompt" is the industry-consistent place to record authorship, and AIRO already has that metadata for free.</p>
+<h3 id="theme-3-attribution-gets-doubted-the-moment-it-ships-and-after-the-fact-inference-cant-back-it-up">Theme 3: Attribution gets doubted the moment it ships, and after-the-fact inference can't back it up</h3>
+<p>Cursor Blame's launch thread is a catalog of trust failures: "it still shows no AI attribution" (Mstoner), "Every file it just says 'No blame data available for this file'" (Joe_Thompson), no conversation summary or thread link (jduffin_adobe), and an accuracy challenge from the same user: why did a PR show "30%" AI credit "when all changes were made by the Cursor Agent" (<a href="https://forum.cursor.com/t/cursor-2-4-cursor-blame/149405" target="_blank" rel="noopener noreferrer">Cursor forum</a>, January-February 2026). The academic result explains why this is hard to fix after the fact: on realistic mixed files, the best line-level detector reaches an F1 of only 0.56 (<a href="https://arxiv.org/abs/2606.12620" target="_blank" rel="noopener noreferrer">HybridCodeAuthorship</a>), so authorship that wasn't recorded at write time is effectively unrecoverable. Git AI's whole design (agent self-reports at write time, log survives rebases) is the working answer.</p>
+<p>For AIRO: if authorship attribution is ever shipped, it has to come from AIRO's own edit pipeline recording what it wrote, at the moment it writes. That's cheap for AIRO (every AI edit already flows through one pipeline) and impossible to retrofit later.</p>
+<h3 id="theme-4-attribution-is-socially-contested-some-users-demand-it-others-strip-it">Theme 4: Attribution is socially contested: some users demand it, others strip it</h3>
+<p>A study of 613 GitHub snippets and 111 practitioners found 76.6% of developers consistently or occasionally self-declare AI-generated code, citing maintenance tracking and ethical responsibility, while 23.4% never do, arguing heavy modification makes original authorship meaningless (<a href="https://arxiv.org/abs/2504.16485" target="_blank" rel="noopener noreferrer">Self-Declaration of AI-Generated Code</a>). The product record mirrors the split: aider ships attribution on by default but documents the off switches, an entire genre of guides exists for disabling Claude Code's trailer, and Cursor Blame's thread includes users who want to opt out individually after team-wide enablement (Bernard_Ye) or turn it off entirely (Ying_Jianghong). Attribution touches contribution graphs, review politics, and blame in the human sense of the word.</p>
+<p>For AIRO: any attribution surface should be a governance/team setting, not a hardcoded label. Cursor gating Blame to Enterprise with admin enablement is the deliberate positioning: attribution as an audit feature for organizations, not a badge on every line for every user.</p>
+<hr />
+<h2 id="part-3-airo-design-implications">Part 3 — AIRO design implications</h2>
+<table>
+<thead>
+<tr>
+<th>Competitor pain / pattern</th>
+<th>What it could mean for AIRO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pending diffs claim user edits as AI edits or drop them (Copilot, Cursor)</td>
+<td>Worth keeping the pending highlight defined as "changed since checkpoint," never "AIRO wrote this"; the second claim breaks on interleaved edits</td>
+</tr>
+<tr>
+<td>The requested Copilot fix is a re-baseline command</td>
+<td>Worth making every accept/save re-baseline the diff automatically, so stale-overlay state can't exist</td>
+</tr>
+<tr>
+<td>All shipped attribution sits at a durable boundary (commit/author/note), none in the buffer</td>
+<td>Worth putting authorship on the checkpoint/version entry ("Round 3, by AIRO, from this prompt") rather than on lines</td>
+</tr>
+<tr>
+<td>After-the-fact detection maxes out at F1 0.56 on mixed files</td>
+<td>If line-level attribution is ever wanted, record it from AIRO's edit pipeline at write time; don't plan on inferring it later</td>
+</tr>
+<tr>
+<td>Attribution accuracy gets challenged immediately (Cursor Blame launch)</td>
+<td>Worth showing the evidence with the claim: link the version entry to the prompt and diff that produced it, the way Cursor links blame to conversations</td>
+</tr>
+<tr>
+<td>Attribution is contested; users disable trailers and opt out</td>
+<td>Worth making any authorship display a workspace/admin setting, consistent with Workato's governance posture</td>
+</tr>
+<tr>
+<td>aider distinguishes "AI wrote it" from "AI committed it"</td>
+<td>If AIRO ever saves/releases on the user's behalf, worth keeping those two facts separate in the audit trail</td>
+</tr>
+<tr>
+<td>Cursor ships Blame as Enterprise-only governance</td>
+<td>Signal that AI authorship audit is an enterprise buying concern; relevant to AIRO's agent-governance story beyond the editor</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-biggest-gap-surfaced-by-this-research">The biggest gap surfaced by this research</h3>
+<p>No product distinguishes human from AI edits inside the pending diff, and the two that try to reconcile mixed edits there (Copilot, Cursor) generate the loudest complaints in the space. Everyone who succeeded at attribution moved it to a durable boundary and recorded it at write time. For PMO-2980 this resolves the open question from the highlight note in a specific way: the diff view should stay authorship-blind ("changed since checkpoint"), and authorship should live one level up, on the checkpoint/version entry, where AIRO already knows the answer with certainty. The open question for the PRD is whether that checkpoint-level attribution is surfaced at all in v1 (a "by AIRO" marker on version history entries costs almost nothing and matches where the industry landed), and whether Workato's governance surface eventually wants the audit-grade version (per-round prompt + diff linkage), which is what Cursor sells as Enterprise Blame.</p>
+<hr />
+<h2 id="part-4-research-references">Part 4 — Research references</h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2504.16485" target="_blank" rel="noopener noreferrer">On Developers' Self-Declaration of AI-Generated Code</a> (Xu et al.): 76.6% of developers self-declare AI code at least occasionally; motivations are maintenance tracking and ethics; non-declarers cite heavy modification and overhead.</li>
+<li><a href="https://arxiv.org/abs/2606.12620" target="_blank" rel="noopener noreferrer">HybridCodeAuthorship</a>: benchmark of realistic mixed human/AI Python files; best detector reaches F1 0.48 chunk-level / 0.56 line-level, showing after-the-fact authorship recovery is unreliable.</li>
+<li><a href="https://www.infoq.com/news/2026/02/agent-trace-cursor/" target="_blank" rel="noopener noreferrer">Agent Trace RFC</a> (Cursor, February 2026): draft open spec for recording AI contributions (human / AI / mixed / unknown per code range, storage-agnostic); the emerging interchange format if AIRO ever exports attribution.</li>
+</ul>
+<hr />
+<h2 id="appendix-all-source-links">Appendix — All source links</h2>
+<h3 id="official-documentation">Official documentation</h3>
+<ul>
+<li><a href="https://cursor.com/docs/integrations/cursor-blame" target="_blank" rel="noopener noreferrer">Cursor Blame</a></li>
+<li><a href="https://aider.chat/docs/git.html" target="_blank" rel="noopener noreferrer">aider — Git integration and attribution options</a></li>
+<li><a href="https://usegitai.com/agent-blame" target="_blank" rel="noopener noreferrer">Git AI — Agent Blame</a></li>
+<li><a href="https://code.visualstudio.com/docs/copilot/chat/copilot-edits" target="_blank" rel="noopener noreferrer">GitHub Copilot — Copilot Edits (staging auto-accepts)</a></li>
+<li><a href="https://code.visualstudio.com/docs/copilot/chat/review-code-edits" target="_blank" rel="noopener noreferrer">GitHub Copilot — Review AI-generated edits</a></li>
+<li><a href="https://zed.dev/docs/ai/agent-panel" target="_blank" rel="noopener noreferrer">Zed — Agent Panel</a></li>
+</ul>
+<h3 id="complaint-and-discussion-sources">Complaint and discussion sources</h3>
+<ul>
+<li><a href="https://github.com/microsoft/vscode/issues/307439" target="_blank" rel="noopener noreferrer">vscode #307439 — pending edits overlay claims manual edits, cannot clear</a></li>
+<li><a href="https://forum.cursor.com/t/all-changes-show-stale-agent-changes-and-disregard-user-changes/144331" target="_blank" rel="noopener noreferrer">Cursor forum — All Changes shows stale agent changes, disregards user changes</a></li>
+<li><a href="https://forum.cursor.com/t/cursor-2-4-cursor-blame/149405" target="_blank" rel="noopener noreferrer">Cursor forum — Cursor 2.4: Cursor Blame launch thread</a></li>
+<li><a href="https://fabiorehm.com/blog/2026/03/02/our-coding-agent-commits-deserve-better-than-co-authored-by/" target="_blank" rel="noopener noreferrer">Fabio Rehm — Our coding agent commits deserve better than Co-Authored-By</a></li>
+</ul>
+<h3 id="industry-and-academic">Industry and academic</h3>
+<ul>
+<li><a href="https://www.infoq.com/news/2026/02/agent-trace-cursor/" target="_blank" rel="noopener noreferrer">InfoQ — Agent Trace: Cursor proposes an open specification for AI code attribution</a></li>
+<li><a href="https://arxiv.org/abs/2504.16485" target="_blank" rel="noopener noreferrer">arXiv 2504.16485 — On Developers' Self-Declaration of AI-Generated Code</a></li>
+<li><a href="https://arxiv.org/abs/2606.12620" target="_blank" rel="noopener noreferrer">arXiv 2606.12620 — HybridCodeAuthorship</a></li>
+</ul>
+</body>
+</html>
