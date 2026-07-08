@@ -77,13 +77,15 @@ em { font-style: italic; }
 </head>
 <body>
 <h1 id="distinguishing-human-edits-from-ai-edits-two-directions-compared">Distinguishing Human Edits from AI Edits — Two Directions Compared</h1>
+<style>mark { background: #fff3bf; padding: 0 3px; border-radius: 3px; }</style>
+
 <p><strong>Context.</strong> For the AIRO SDK connector editor flow (PMO-2980). The team has two related decisions in play: the in-editor highlight model (current decision: highlight only AIRO's edits, user edits stay plain) and the deep view (current decision: show all changes in a round, no author distinction). This doc lays out both directions side by side: who ships each, what users complain about, what each buys you, and where the technical bodies are buried. Sources are drawn from the diff-lifecycle, undo/redo, and diff-authorship research in this collection.</p>
 <p><strong>Products covered.</strong> Cursor, GitHub Copilot (VS Code), Zed, aider, Claude Code, Git AI, plus Google Docs and git/PR review as the mature-convention baselines.</p>
 <p><strong>Scope.</strong> The comparison is about edit surfaces: live editor highlights, pending review diffs, state-vs-state diffs (deep view, version history), and persistent attribution (blame/commit level).</p>
 <hr />
 <h2 id="direction-1-distinguish-human-edits-from-ai-edits">Direction 1 — Distinguish human edits from AI edits</h2>
 <h3 id="who-does-it">Who does it</h3>
-<p><strong>Every AI-native editor already does this in the live review surface, by design.</strong> Pending highlights in Cursor, Copilot, Zed, Windsurf, and JetBrains mark the AI's proposed edits only; the user's own typing is never highlighted. Accept/Reject controls apply to the AI's edits, and the user's edits ride the native undo stack. The AIRO editor model the team decided (highlight = AIRO's edits, user edits plain, Accept/Reject for AIRO + native Undo for the user) matches this industry default exactly.</p>
+<p><strong><mark>Every AI-native editor already does this in the live review surface, by design.</mark></strong> Pending highlights in Cursor, Copilot, Zed, Windsurf, and JetBrains mark the AI's proposed edits only; the user's own typing is never highlighted. Accept/Reject controls apply to the AI's edits, and the user's edits ride the native undo stack. <mark>The AIRO editor model the team decided (highlight = AIRO's edits, user edits plain, Accept/Reject for AIRO + native Undo for the user) matches this industry default exactly.</mark></p>
 <p><strong>A smaller set persists the distinction after acceptance:</strong></p>
 <ul>
 <li><a href="https://cursor.com/docs/integrations/cursor-blame" target="_blank" rel="noopener noreferrer">Cursor Blame</a> (2.4, Enterprise-only, admin-enabled): git blame extended with per-line Tab / Agent / Human classes, model names, and links to the conversation that produced each line; commit view shows percentage attribution.</li>
@@ -94,7 +96,7 @@ em { font-style: italic; }
 </ul>
 <p><strong>The mature human-collaboration precedent also distinguishes:</strong> Google Docs <a href="https://support.google.com/docs/answer/190843?hl=en&amp;co=GENIE.Platform%3DDesktop" target="_blank" rel="noopener noreferrer">colors changes per author</a> in version history. Multi-author attribution is a convention users already understand; AI authorship extends it.</p>
 <h3 id="what-users-complain-about">What users complain about</h3>
-<p>The complaints cluster on the distinction breaking, not on the distinction existing:</p>
+<p><mark>The complaints cluster on the distinction breaking, not on the distinction existing:</mark></p>
 <ul>
 <li>Copilot claims the user's manual edits as AI edits and can't clear them: "Even if I manually edited those files outside the chat session... I cannot clear the diff overlay" (<a href="https://github.com/microsoft/vscode/issues/307439" target="_blank" rel="noopener noreferrer">vscode #307439</a>, April 2026). The requested fix is a re-baseline command.</li>
 <li>Cursor shows the AI's stale changes while "disregarding the manual changes that the user did" (<a href="https://forum.cursor.com/t/all-changes-show-stale-agent-changes-and-disregard-user-changes/144331" target="_blank" rel="noopener noreferrer">Cursor forum</a>, November 2025).</li>
@@ -110,22 +112,22 @@ em { font-style: italic; }
 </ul>
 <h3 id="technical-problems">Technical problems</h3>
 <ul>
-<li><strong>The interleaved-edit ambiguity is unavoidable.</strong> The moment a user types inside a pending AI region, "whose line is this" has no clean answer. Every product hits this; it's the team's open 1C item. The two workable mechanisms both resolve ambiguity by collapsing it: typing anywhere auto-accepts the round (Chisin's direction; Cursor's commit behavior is the analog), or touching a highlighted line auto-accepts that line (Scarlett's direction). Both keep the surviving highlights honestly pure-AI.</li>
+<li><strong><mark>The interleaved-edit ambiguity is unavoidable.</mark></strong> The moment a user types inside a pending AI region, "whose line is this" has no clean answer. Every product hits this; it's the team's open 1C item. The two workable mechanisms both resolve ambiguity by collapsing it: typing anywhere auto-accepts the round (Chisin's direction; Cursor's commit behavior is the analog), or touching a highlighted line auto-accepts that line (Scarlett's direction). <mark>Both keep the surviving highlights honestly pure-AI.</mark></li>
 <li><strong>Event-log tracking drifts.</strong> Tracking "the AI edited these ranges" as remembered state is the root cause of the phantom-highlight complaint class (highlights surviving accepts, restarts, renames; see diff-lifecycle Theme 1). Any distinction layer needs to be reconciled against the actual file, not just recorded.</li>
-<li><strong>Attribution can't be recovered later.</strong> On realistic mixed files the best line-level detector reaches F1 0.56 (<a href="https://arxiv.org/abs/2606.12620" target="_blank" rel="noopener noreferrer">HybridCodeAuthorship</a>). If it isn't recorded at write time from the AI's own pipeline, it's gone.</li>
+<li><strong><mark>Attribution can't be recovered later.</mark></strong> On realistic mixed files the best line-level detector reaches F1 0.56 (<a href="https://arxiv.org/abs/2606.12620" target="_blank" rel="noopener noreferrer">HybridCodeAuthorship</a>). If it isn't recorded at write time from the AI's own pipeline, it's gone.</li>
 <li><strong>History editing breaks naive attribution.</strong> Rebases, squashes, and refactors detach line ranges from records; Git AI rewrites its notes through these, and Agent Trace explicitly leaves them unresolved.</li>
 </ul>
 <hr />
 <h2 id="direction-2-dont-distinguish-one-diff-all-changes">Direction 2 — Don't distinguish: one diff, all changes</h2>
 <h3 id="who-does-it_1">Who does it</h3>
 <ul>
-<li><strong>Git and PR review, the deepest convention in the space.</strong> A PR diff is state-vs-state (branch vs base) and author-blind; reviewers review the change, not the author. Workato's own Recipe Diff and Zapier's <a href="https://help.zapier.com/hc/en-us/articles/25447484764813-Easily-compare-versions-of-your-Zap" target="_blank" rel="noopener noreferrer">draft-vs-published compare</a> are the same model.</li>
+<li><strong><mark>Git and PR review, the deepest convention in the space.</mark></strong> A PR diff is state-vs-state (branch vs base) and author-blind; reviewers review the change, not the author. Workato's own Recipe Diff and Zapier's <a href="https://help.zapier.com/hc/en-us/articles/25447484764813-Easily-compare-versions-of-your-Zap" target="_blank" rel="noopener noreferrer">draft-vs-published compare</a> are the same model.</li>
 <li><strong>Every AI editor at the durable boundary.</strong> Copilot: <a href="https://code.visualstudio.com/docs/copilot/chat/copilot-edits" target="_blank" rel="noopener noreferrer">staging auto-accepts</a> all pending edits; Cursor: committing auto-accepts diffs. Once code crosses into version control, all four products stop distinguishing.</li>
 <li><strong>The AIRO deep view as decided:</strong> documents all changes in one round against the checkpoint, user and AIRO edits alike, all highlighted.</li>
 <li><strong>Reject all as decided:</strong> reverts the whole state to the checkpoint, including the user's own edits, precisely because the live state can't be split by author reliably.</li>
 </ul>
 <h3 id="what-users-complain-about_1">What users complain about</h3>
-<p>The complaints cluster on losing track and losing work:</p>
+<p><mark>The complaints cluster on losing track and losing work:</mark></p>
 <ul>
 <li><strong>Losing track of what the AI did.</strong> In the CHI 2026 comparison study, agent-mode participants reduced effort but lost awareness of changes: "I did not expect 10 files... 1000 lines each" (<a href="https://arxiv.org/abs/2507.08149" target="_blank" rel="noopener noreferrer">Code with Me or for Me?</a>). Once edits mix, the reviewer can't tell what needs scrutiny.</li>
 <li><strong>Review burden lands on whoever reads the mixed diff.</strong> "AI agents frequently make unnecessary changes that reviewers ultimately reject, adding noise to the review process and eroding trust" (<a href="https://rdel.substack.com/p/rdel-129-what-keeps-ai-generated" target="_blank" rel="noopener noreferrer">RDEL #129</a>); the "Endless Stream of AI Slop" analysis calls this externalizing the producer's speed gain onto the reviewer (<a href="https://arxiv.org/abs/2603.27249" target="_blank" rel="noopener noreferrer">arXiv 2603.27249</a>).</li>
@@ -134,20 +136,20 @@ em { font-style: italic; }
 </ul>
 <h3 id="benefits_1">Benefits</h3>
 <ul>
-<li><strong>Robust by construction.</strong> A state-vs-state diff (current vs checkpoint) is computed, not remembered. The entire phantom-highlight complaint class cannot occur. This was the strongest design implication in the diff-lifecycle research.</li>
+<li><strong><mark>Robust by construction.</mark></strong> A state-vs-state diff (current vs checkpoint) is computed, not remembered. <mark>The entire phantom-highlight complaint class cannot occur.</mark> This was the strongest design implication in the diff-lifecycle research.</li>
 <li><strong>No accuracy disputes.</strong> A diff that claims nothing about authorship can't be wrong about authorship. Cursor Blame's launch-week credibility fight is not a risk this direction takes.</li>
 <li><strong>Matches the deep view's job.</strong> The deep view documents what changed in a round so it can be reviewed and restored; for that job, authorship is irrelevant and completeness is everything. One missing user edit in the deep view would be worse than no attribution at all.</li>
 <li><strong>Cheap and predictable.</strong> Two-state diff is a solved problem; no per-keystroke bookkeeping, no reconciliation logic, no attribution storage.</li>
 </ul>
 <h3 id="technical-problems_1">Technical problems</h3>
 <ul>
-<li><strong>Authorship is irreversibly lost at mixing time.</strong> If any future need (governance audit, "what did AIRO do last sprint") wants authorship, it must have been recorded at write time; after-the-fact inference is a research-grade unsolved problem (F1 0.56, above).</li>
+<li><strong><mark>Authorship is irreversibly lost at mixing time.</mark></strong> If any future need (governance audit, "what did AIRO do last sprint") wants authorship, it must have been recorded at write time; after-the-fact inference is a research-grade unsolved problem (F1 0.56, above).</li>
 <li><strong>Reject-all must be conservative.</strong> Because the state can't be split by author, rejecting the AI's work necessarily takes the user's interleaved work with it. That's defensible only with a reliable recovery path (one-step native Undo) and honest copy.</li>
 <li><strong>The review gate needs another mechanism to scope itself.</strong> If highlights don't say "this is AIRO's," something else must define what Accept/Reject applies to. The checkpoint boundary does this job: everything since the checkpoint is the reviewable unit.</li>
 </ul>
 <hr />
 <h2 id="how-the-two-directions-actually-combine">How the two directions actually combine</h2>
-<p>The industry pattern, and the pair of decisions the team has already made, is not either/or. It's <strong>distinguish in the live review surface, don't distinguish in state-vs-state surfaces</strong>:</p>
+<p>The industry pattern, and the pair of decisions the team has already made, is not either/or. It's <strong><mark>distinguish in the live review surface, don't distinguish in state-vs-state surfaces</mark></strong>:</p>
 <table>
 <thead>
 <tr>
@@ -179,7 +181,7 @@ em { font-style: italic; }
 </tr>
 </tbody>
 </table>
-<p>The load-bearing piece is the open 1C mechanism: what happens when the user edits a highlighted line before accepting. Both candidate answers (typing auto-accepts the round; touching a line auto-accepts that line) work by keeping the highlight layer honestly pure-AI, which is what separates AIRO's model from the Copilot/Cursor complaint generators, whose highlights silently absorb or discard user edits. Whichever 1C option wins, the spec sentence that matters is: a highlight is always a real, current AIRO-authored difference, or it is gone.</p>
+<p><mark>The load-bearing piece is the open 1C mechanism:</mark> what happens when the user edits a highlighted line before accepting. Both candidate answers (typing auto-accepts the round; touching a line auto-accepts that line) work by keeping the highlight layer honestly pure-AI, which is what separates AIRO's model from the Copilot/Cursor complaint generators, whose highlights silently absorb or discard user edits. Whichever 1C option wins, the spec sentence that matters is: <mark>a highlight is always a real, current AIRO-authored difference, or it is gone.</mark></p>
 <hr />
 <h2 id="appendix-all-source-links">Appendix — All source links</h2>
 <h3 id="official-documentation">Official documentation</h3>
